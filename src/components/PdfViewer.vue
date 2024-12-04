@@ -60,6 +60,8 @@ export default {
             const fileReader = new FileReader();
             fileReader.onload = async (e) => {
                 const pdfData = e.target.result;
+                pdfjsLib.GlobalWorkerOptions.workerSrc =
+                    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
                 pdfDoc = await pdfjsLib.getDocument({ data: pdfData }).promise;
 
