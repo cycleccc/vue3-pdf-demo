@@ -23,43 +23,50 @@
             / {{ totalPages }}
             <button @click="zoomIn">放大</button>
             <button @click="zoomOut">缩小</button>
+            <button @click="downloadPdf" :disabled="!pdfBlob">下载</button>
+            <button @click="printPdf" :disabled="!pdfBlob">打印</button>
         </div>
 
         <!-- 渲染 PDF 的画布 -->
         <div class="canvas-container">
             <canvas ref="pdfCanvas"></canvas>
         </div>
+
+        <!-- 隐藏的 iframe 用于打印 -->
+        <iframe ref="printIframe" style="display: none;"></iframe>
     </div>
 </template>
+
 
 <script>
 import { ref, reactive, onMounted } from 'vue';
 import * as pdfjsLib from 'pdfjs-dist';
 import * as PdfWorker from 'pdfjs-dist/build/pdf.worker.js';
+import { saveAs } from 'file-saver';
 
 export default {
-    name: 'PdfViewer',
+  name: 'PdfViewer',
     setup() {
         const pdfCanvas = ref(null);
-        // const pdfDoc = ref(null);
-        let pdfDoc = '';
+        const printIframe = ref(null);
+        const pdfBlob = ref(null);
+        let pdfDoc = null;
         const currentPage = ref(1);
         const currentPageInput = ref(1);
         const totalPages = ref(0);
         const scale = ref(1.0);
 
-        const loadPdf = async file => {
+        const loadPdf = async (file) => {
             const fileReader = new FileReader();
-            fileReader.onload = async e => {
+            fileReader.onload = async (e) => {
                 const pdfData = e.target.result;
-                pdfjsLib.GlobalWorkerOptions.workerSrc =
-                    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
                 pdfDoc = await pdfjsLib.getDocument({ data: pdfData }).promise;
 
                 totalPages.value = pdfDoc.numPages;
                 currentPage.value = 1;
                 currentPageInput.value = 1;
+                pdfBlob.value = new Blob([pdfData], { type: 'application/pdf' });
                 renderPage();
             };
             fileReader.readAsArrayBuffer(file);
@@ -83,13 +90,25 @@ export default {
             page.render(renderContext);
         };
 
-        const onFileChange = e => {
-            const file = e.target.files[0];
-            if (file && file.type === 'application/pdf') {
-                loadPdf(file);
-            } else {
-                alert('请上传 PDF 文件！');
-            }
+        const downloadPdf = () => {
+            if (!pdfBlob.value) return;
+
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(pdfBlob.value);
+            link.download = 'downloaded.pdf';
+            link.click();
+        };
+
+        const printPdf = () => {
+            if (!pdfBlob.value) return;
+
+            const iframe = printIframe.value;
+            const pdfUrl = URL.createObjectURL(pdfBlob.value);
+
+            iframe.src = pdfUrl;
+            iframe.onload = () => {
+                iframe.contentWindow.print();
+            };
         };
 
         const prevPage = () => {
@@ -132,15 +151,19 @@ export default {
 
         return {
             pdfCanvas,
+            printIframe,
+            pdfBlob,
             currentPage,
             currentPageInput,
             totalPages,
-            onFileChange,
+            onFileChange: (e) => loadPdf(e.target.files[0]),
             prevPage,
             nextPage,
             goToPage,
             zoomIn,
             zoomOut,
+            downloadPdf,
+            printPdf,
         };
     },
 };
